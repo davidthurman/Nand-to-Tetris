@@ -39,5 +39,55 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-    // Put your code here:
+
+    //i xx a cccccc ddd jjj
+    //i= A or C instruction
+    //if c, a & c bits are comp part, d bits are destination, j is jump
+    //if a, the 15 bits are a constant
+    Or(a=instruction[15], b=false, out=cInstruction); //Found out if it is a C instruction
+    Not(in=cInstruction, out=aInstruction); //Find out if it is an A instruction
+    And(a=cInstruction, b=instruction[5], out=cWriteToA); //Write to A if C instruction and destination is A
+    Or(a=aInstruction, b=cWriteToA, out=loadA); //Load A if an A instruction or C instruction writing to A
+
+    Mux16(a=instruction, b=aluOutput, sel=cWriteToA, out=aRegisterInput);
+    
+    ARegister(in=aRegisterInput, load=loadA, out=aOutput, out[0..14]=addressM); //Load to the A register. Output the M address as well
+
+    And(a=cInstruction, b=instruction[4], out=loadD); //If destination is D and C instruction
+    DRegister(in=aluOutput, load=loadD, out=dOutput);
+
+    Mux16(a=aOutput, b=inM, sel=instruction[12], out=outMOrA);
+
+    ALU(
+    x=dOutput, //D register output
+    y=outMOrA, //
+    zx=instruction[11], //c1
+    nx=instruction[10], //c2
+    zy=instruction[9], //c3
+    ny=instruction[8], //c4
+    f=instruction[7], //c5
+    no=instruction[6], //c6
+    out=aluOutput,
+    out=outM,
+    zr=isZero,
+    ng=isNeg
+    );
+
+    Not(in=isNeg, out=isPos);
+    Not(in=isZero, out=isntZero);
+    And(a=isPos, b=isntZero, out=isPositive);
+
+    And(a=instruction[3], b=cInstruction, out=writeM); //If write to m
+
+    And(a=instruction[0], b=isPositive, out=JGT);
+    And(a=instruction[1], b=isZero, out=JEQ);
+    And(a=instruction[2], b=isNeg, out=JLT);
+
+    Or(a=JEQ, b=JLT, out=JLE);
+    Or(a=JLE, b=JGT, out=aJump); //Find out if to jump
+    And(a=cInstruction, b=aJump, out=pcLoad); //Load pc if a cinstruction with a jump
+
+    Not(in=pcLoad, out=inc);
+    PC(in=aOutput, inc=inc, load=pcLoad, reset=reset, out[0..14]=pc);
+
 }
